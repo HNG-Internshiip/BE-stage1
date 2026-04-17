@@ -1,6 +1,3 @@
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: f }) => f(...args));
-
 async function fetchGender(name) {
   const res = await fetch(`https://api.genderize.io/?name=${encodeURIComponent(name)}`);
   if (!res.ok) throw upstreamError("Genderize");

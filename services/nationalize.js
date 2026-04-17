@@ -1,6 +1,3 @@
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: f }) => f(...args));
-
 async function fetchNationality(name) {
   const res = await fetch(`https://api.nationalize.io/?name=${encodeURIComponent(name)}`);
   if (!res.ok) throw upstreamError("Nationalize");

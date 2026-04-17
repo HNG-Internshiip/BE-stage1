@@ -1,6 +1,3 @@
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: f }) => f(...args));
-
 async function fetchAge(name) {
   const res = await fetch(`https://api.agify.io/?name=${encodeURIComponent(name)}`);
   if (!res.ok) throw upstreamError("Agify");
