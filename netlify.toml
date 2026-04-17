@@ -4,7 +4,8 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["pg", "pg-native"]
+  included_files = ["routes/**", "services/**", "db/**"]
+  external_node_modules = ["pg", "pg-native", "express", "serverless-http", "node-fetch"]
 
 [[redirects]]
   from   = "/api/*"
