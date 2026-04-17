@@ -1,4 +1,12 @@
 import { Router } from "express";
+import db from "../db/database.js";
+import { fetchGender } from "../services/genderize.js";
+import { fetchAge } from "../services/agify.js";
+import { fetchNationality } from "../services/nationalize.js";
+import { getAgeGroup } from "../services/classify.js";
+
+export const profilesRouter = Router();
+
 // UUID v7 — time-ordered, no external dependency needed
 function uuidv7() {
   const now = Date.now();
@@ -12,45 +20,29 @@ function uuidv7() {
   bytes[3] = (timeLow >>> 16) & 0xff;
   bytes[4] = (timeLow >>>  8) & 0xff;
   bytes[5] =  timeLow         & 0xff;
-
-  // Version 7
   bytes[6] = 0x70 | (Math.random() * 0x10 & 0x0f);
   bytes[7] =         Math.random() * 0x100 & 0xff;
-
-  // Variant bits (10xxxxxx)
   bytes[8] = 0x80 | (Math.random() * 0x40 & 0x3f);
-
   for (let i = 9; i < 16; i++) bytes[i] = Math.random() * 0x100 & 0xff;
 
   const h = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
-import db from "../db/database.js";
-import { fetchGender } from "../services/genderize.js";
-import { fetchAge } from "../services/agify.js";
-import { fetchNationality } from "../services/nationalize.js";
-import { getAgeGroup } from "../services/classify.js";
-
-export const profilesRouter = Router();
 
 // ─── POST /api/profiles ──────────────────────────────────────────────────────
 profilesRouter.post("/", async (req, res) => {
   const { name } = req.body;
 
-  // 400 — missing or empty
   if (name === undefined || name === "") {
     return res.status(400).json({ status: "error", message: "Missing or empty name" });
   }
-
-  // 422 — wrong type
   if (typeof name !== "string") {
     return res.status(422).json({ status: "error", message: "name must be a string" });
   }
 
   const normalized = name.trim().toLowerCase();
 
-  // Idempotency — return existing profile for the same name
-  const existing = db.prepare("SELECT * FROM profiles WHERE name = ?").get(normalized);
+  const existing = await db.prepare("SELECT * FROM profiles WHERE name = $1").get(normalized);
   if (existing) {
     return res.status(200).json({
       status:  "success",
@@ -59,7 +51,6 @@ profilesRouter.post("/", async (req, res) => {
     });
   }
 
-  // Call all three external APIs in parallel
   let genderData, ageData, nationalityData;
   try {
     [genderData, ageData, nationalityData] = await Promise.all([
@@ -85,7 +76,7 @@ profilesRouter.post("/", async (req, res) => {
     created_at:          new Date().toISOString(),
   };
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO profiles
       (id, name, gender, gender_probability, sample_size, age, age_group,
        country_id, country_probability, created_at)
@@ -98,26 +89,26 @@ profilesRouter.post("/", async (req, res) => {
 });
 
 // ─── GET /api/profiles ───────────────────────────────────────────────────────
-profilesRouter.get("/", (req, res) => {
+profilesRouter.get("/", async (req, res) => {
   const { gender, country_id, age_group } = req.query;
 
-  let query  = "SELECT * FROM profiles WHERE 1=1";
+  let query = "SELECT * FROM profiles WHERE 1=1";
   const params = [];
 
   if (gender) {
-    query += " AND LOWER(gender) = ?";
+    query += ` AND LOWER(gender) = $${params.length + 1}`;
     params.push(gender.toLowerCase());
   }
   if (country_id) {
-    query += " AND LOWER(country_id) = ?";
+    query += ` AND LOWER(country_id) = $${params.length + 1}`;
     params.push(country_id.toLowerCase());
   }
   if (age_group) {
-    query += " AND LOWER(age_group) = ?";
+    query += ` AND LOWER(age_group) = $${params.length + 1}`;
     params.push(age_group.toLowerCase());
   }
 
-  const rows = db.prepare(query).all(...params);
+  const rows = await db.prepare(query).all(...params);
 
   return res.status(200).json({
     status: "success",
@@ -127,8 +118,8 @@ profilesRouter.get("/", (req, res) => {
 });
 
 // ─── GET /api/profiles/:id ───────────────────────────────────────────────────
-profilesRouter.get("/:id", (req, res) => {
-  const row = db.prepare("SELECT * FROM profiles WHERE id = ?").get(req.params.id);
+profilesRouter.get("/:id", async (req, res) => {
+  const row = await db.prepare("SELECT * FROM profiles WHERE id = $1").get(req.params.id);
 
   if (!row) {
     return res.status(404).json({ status: "error", message: "Profile not found" });
@@ -138,8 +129,8 @@ profilesRouter.get("/:id", (req, res) => {
 });
 
 // ─── DELETE /api/profiles/:id ────────────────────────────────────────────────
-profilesRouter.delete("/:id", (req, res) => {
-  const result = db.prepare("DELETE FROM profiles WHERE id = ?").run(req.params.id);
+profilesRouter.delete("/:id", async (req, res) => {
+  const result = await db.prepare("DELETE FROM profiles WHERE id = $1").run(req.params.id);
 
   if (result.changes === 0) {
     return res.status(404).json({ status: "error", message: "Profile not found" });
@@ -149,8 +140,6 @@ profilesRouter.delete("/:id", (req, res) => {
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-// Full profile shape (POST / GET single)
 function formatProfile(p) {
   return {
     id:                  p.id,
@@ -166,7 +155,6 @@ function formatProfile(p) {
   };
 }
 
-// Slim shape used in GET all list
 function formatProfileList(p) {
   return {
     id:         p.id,

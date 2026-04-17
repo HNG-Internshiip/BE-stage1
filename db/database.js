@@ -1,23 +1,13 @@
-import initSqlJs from "sql.js";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import pkg from "pg";
+const { Pool } = pkg;
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, "profiles.db");
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-const SQL = await initSqlJs();
-
-// Load existing DB file from disk, or create a fresh one
-let db;
-if (fs.existsSync(DB_PATH)) {
-  const fileBuffer = fs.readFileSync(DB_PATH);
-  db = new SQL.Database(fileBuffer);
-} else {
-  db = new SQL.Database();
-}
-
-db.run(`
+// Create table on first run
+await pool.query(`
   CREATE TABLE IF NOT EXISTS profiles (
     id                  TEXT PRIMARY KEY,
     name                TEXT NOT NULL UNIQUE,
@@ -32,51 +22,40 @@ db.run(`
   )
 `);
 
-// Persist DB to disk after every write
-function persist() {
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
+// Wrapper that mimics the same interface used in routes/profiles.js
+// Converts @param style to $1 $2 positional style for Postgres
+function convertQuery(sql, obj) {
+  const values = [];
+  let i = 1;
+  const text = sql.replace(/@(\w+)/g, (_, key) => {
+    values.push(obj[key]);
+    return `$${i++}`;
+  });
+  return { text, values };
 }
 
-// Mimic better-sqlite3's interface so routes/profiles.js needs no changes
-const wrapper = {
+const db = {
   prepare(sql) {
     return {
-      get(...params) {
-        const stmt = db.prepare(sql);
-        stmt.bind(params);
-        if (stmt.step()) {
-          const row = stmt.getAsObject();
-          stmt.free();
-          return row;
-        }
-        stmt.free();
-        return undefined;
+      async get(...params) {
+        const res = await pool.query(sql.replace(/@\w+/g, (_, i) => `$${i + 1}`), params);
+        return res.rows[0];
       },
-      all(...params) {
-        const results = [];
-        const stmt = db.prepare(sql);
-        stmt.bind(params);
-        while (stmt.step()) results.push(stmt.getAsObject());
-        stmt.free();
-        return results;
+      async all(...params) {
+        const res = await pool.query(sql, params);
+        return res.rows;
       },
-      run(param) {
-        // sql.js expects named params as `{ $key: value }` prefixed with $
+      async run(param) {
         if (param && typeof param === "object" && !Array.isArray(param)) {
-          const mapped = {};
-          for (const [k, v] of Object.entries(param)) {
-            mapped[`$${k}`] = v;
-          }
-          db.run(sql.replace(/@(\w+)/g, "$$$1"), mapped);
-        } else {
-          db.run(sql, param);
+          const { text, values } = convertQuery(sql, param);
+          const res = await pool.query(text, values);
+          return { changes: res.rowCount };
         }
-        persist();
-        return { changes: db.getRowsModified() };
+        const res = await pool.query(sql, param);
+        return { changes: res.rowCount };
       },
     };
   },
 };
 
-export default wrapper;
+export default db;
