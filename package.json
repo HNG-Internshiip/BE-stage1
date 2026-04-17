@@ -1,0 +1,16 @@
+{
+  "name": "profile-classifier",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "sql.js": "^1.12.0",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "uuid": "^9.0.0"
+  }
+}
