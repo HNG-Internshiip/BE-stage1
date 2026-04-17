@@ -1,14 +1,13 @@
-import fetch from "node-fetch";
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: f }) => f(...args));
 
-export async function fetchNationality(name) {
+async function fetchNationality(name) {
   const res = await fetch(`https://api.nationalize.io/?name=${encodeURIComponent(name)}`);
   if (!res.ok) throw upstreamError("Nationalize");
 
   const data = await res.json();
-
   if (!data.country || data.country.length === 0) throw upstreamError("Nationalize");
 
-  // Pick highest probability country
   const top = data.country.reduce((a, b) => (a.probability >= b.probability ? a : b));
 
   return {
@@ -22,3 +21,5 @@ function upstreamError(api) {
   err.status = 502;
   return err;
 }
+
+module.exports = { fetchNationality };

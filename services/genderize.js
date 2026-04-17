@@ -1,11 +1,11 @@
-import fetch from "node-fetch";
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: f }) => f(...args));
 
-export async function fetchGender(name) {
+async function fetchGender(name) {
   const res = await fetch(`https://api.genderize.io/?name=${encodeURIComponent(name)}`);
   if (!res.ok) throw upstreamError("Genderize");
 
   const data = await res.json();
-
   if (!data.gender || !data.count) throw upstreamError("Genderize");
 
   return {
@@ -20,3 +20,5 @@ function upstreamError(api) {
   err.status = 502;
   return err;
 }
+
+module.exports = { fetchGender };

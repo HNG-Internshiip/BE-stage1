@@ -1,11 +1,10 @@
-import express from "express";
-import { profilesRouter } from "./routes/profiles.js";
+const express = require("express");
+const { profilesRouter } = require("./routes/profiles");
 
 const app = express();
 
 app.use(express.json());
 
-// CORS — required for grading script
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
@@ -13,9 +12,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Handle preflight requests
 app.options("*", (req, res) => res.sendStatus(204));
-
 app.use("/api/profiles", profilesRouter);
 
-export default app;
+module.exports = app;

@@ -1,18 +1,16 @@
-import { Router } from "express";
-import db from "../db/database.js";
-import { fetchGender } from "../services/genderize.js";
-import { fetchAge } from "../services/agify.js";
-import { fetchNationality } from "../services/nationalize.js";
-import { getAgeGroup } from "../services/classify.js";
+const { Router }           = require("express");
+const db                   = require("../db/database");
+const { fetchGender }      = require("../services/genderize");
+const { fetchAge }         = require("../services/agify");
+const { fetchNationality } = require("../services/nationalize");
+const { getAgeGroup }      = require("../services/classify");
 
-export const profilesRouter = Router();
+const profilesRouter = Router();
 
-// UUID v7 — time-ordered, no external dependency needed
 function uuidv7() {
   const now = Date.now();
   const timeHigh = Math.floor(now / 0x100000000);
   const timeLow  = now >>> 0;
-
   const bytes = new Uint8Array(16);
   bytes[0] = (timeHigh >>> 8) & 0xff;
   bytes[1] =  timeHigh        & 0xff;
@@ -24,7 +22,6 @@ function uuidv7() {
   bytes[7] =         Math.random() * 0x100 & 0xff;
   bytes[8] = 0x80 | (Math.random() * 0x40 & 0x3f);
   for (let i = 9; i < 16; i++) bytes[i] = Math.random() * 0x100 & 0xff;
-
   const h = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
@@ -59,8 +56,7 @@ profilesRouter.post("/", async (req, res) => {
       fetchNationality(normalized),
     ]);
   } catch (err) {
-    const status = err.status || 500;
-    return res.status(status).json({ status: "error", message: err.message });
+    return res.status(err.status || 500).json({ status: "error", message: err.message });
   }
 
   const profile = {
@@ -165,3 +161,5 @@ function formatProfileList(p) {
     country_id: p.country_id,
   };
 }
+
+module.exports = { profilesRouter };

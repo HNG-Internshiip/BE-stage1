@@ -1,5 +1,4 @@
-import pkg from "pg";
-const { Pool } = pkg;
+const { Pool } = require("pg");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -7,7 +6,7 @@ const pool = new Pool({
 });
 
 // Create table on first run
-await pool.query(`
+pool.query(`
   CREATE TABLE IF NOT EXISTS profiles (
     id                  TEXT PRIMARY KEY,
     name                TEXT NOT NULL UNIQUE,
@@ -22,8 +21,6 @@ await pool.query(`
   )
 `);
 
-// Wrapper that mimics the same interface used in routes/profiles.js
-// Converts @param style to $1 $2 positional style for Postgres
 function convertQuery(sql, obj) {
   const values = [];
   let i = 1;
@@ -38,7 +35,7 @@ const db = {
   prepare(sql) {
     return {
       async get(...params) {
-        const res = await pool.query(sql.replace(/@\w+/g, (_, i) => `$${i + 1}`), params);
+        const res = await pool.query(sql, params);
         return res.rows[0];
       },
       async all(...params) {
@@ -58,4 +55,4 @@ const db = {
   },
 };
 
-export default db;
+module.exports = db;

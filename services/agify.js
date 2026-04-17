@@ -1,11 +1,11 @@
-import fetch from "node-fetch";
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: f }) => f(...args));
 
-export async function fetchAge(name) {
+async function fetchAge(name) {
   const res = await fetch(`https://api.agify.io/?name=${encodeURIComponent(name)}`);
   if (!res.ok) throw upstreamError("Agify");
 
   const data = await res.json();
-
   if (data.age === null || data.age === undefined) throw upstreamError("Agify");
 
   return { age: data.age };
@@ -16,3 +16,5 @@ function upstreamError(api) {
   err.status = 502;
   return err;
 }
+
+module.exports = { fetchAge };
